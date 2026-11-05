@@ -129,4 +129,56 @@ class TefwayStrings {
   static const serverOk = 'Servidor conectado';
   static const serverConnecting = 'Conectando ao servidor';
   static const serverDown = 'Servidor indisponível';
+
+  // Central de Diagnósticos.
+  static const diagnosticsTitle = 'Central de Diagnósticos';
+  static const diagnosticsNone = 'Nenhuma condição exige atenção agora.';
+  static const diagnosticsEmpty =
+      'Nenhum diagnóstico pendente. O sistema não reportou condições que afetem o atendimento.';
+  static const diagnosticsOpen = 'Abrir diagnósticos';
+  static String diagnosticsCount(int count) =>
+      count == 1 ? '1 aviso' : '$count avisos';
+  static const diagnosticsClose = 'Fechar';
+  static const diagnosticsConsequence = 'Consequência para o atendimento';
+  static const diagnosticsAction = 'Ação recomendada';
+  static const diagnosticsSeverityInfo = 'Informativo';
+  static const diagnosticsSeverityWarning = 'Advertência';
+  static const diagnosticsSeverityCritical = 'Erro crítico';
+  static const diagnosticsSecurityNote =
+      'A Central de Diagnósticos informa condições do sistema. Ela não ignora, '
+      'não oculta e não desativa nenhuma verificação de segurança.';
+  static const diagnosticsCoreConsequence =
+      'Enquanto esta falha existir, o atendimento neste computador pode não '
+      'iniciar ou ser interrompido.';
+  static const diagnosticsCoreAction =
+      'Verifique a conexão com o servidor Tefway e tente novamente.';
+
+  // Consequence and action for each platform condition.
+  static const uacConsequence =
+      'Janelas elevadas podem não responder ao controle remoto enquanto o UAC '
+      'estiver em primeiro plano.';
+  static const uacAction =
+      'Confirme o UAC no computador do cliente e retome o controle pela janela '
+      'de atendimento.';
+  static const waylandConsequence =
+      'A captura depende da autorização do portal. Se a tela não aparecer, o '
+      'motivo é essa autorização, não uma falha comprovada do sistema.';
+  static const waylandAction =
+      'Se a tela não aparecer, aceite o compartilhamento no diálogo do portal '
+      'do sistema e reconecte.';
+  static const loginWaylandConsequence =
+      'A tela de login não pode ser capturada nesta configuração.';
+  static const loginWaylandAction =
+      'Se precisar capturar a tela de login, use uma sessão X11.';
+  static const selinuxConsequence =
+      'O SELinux pode negar acesso aos dispositivos de entrada e à captura, '
+      'mas apenas a política do sistema determina se isso ocorre.';
+  static const selinuxAction =
+      'Se a captura falhar, peça ao administrador do computador para conferir '
+      'o log de negações do SELinux. Não desative o SELinux.';
+
+  // Consent.
+  static const consentPeerDeclared =
+      'Nome informado pelo solicitante. A identidade do técnico é verificada '
+      'pelo núcleo antes de qualquer liberação.';
 }

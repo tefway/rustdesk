@@ -5,6 +5,9 @@
 // they read to support, the real availability of the service, and whether a
 // session is running right now. Consent itself stays in the approval window
 // the core opens, which requires a local click for every new session.
+//
+// Platform conditions live behind the Central de Diagnósticos in the header;
+// the main surface only carries a blocking core error, in the flow it affects.
 
 import 'dart:async';
 import 'dart:convert';
@@ -16,6 +19,7 @@ import 'package:flutter_hbb/common/formatter/id_formatter.dart';
 import 'package:flutter_hbb/models/platform_model.dart';
 import 'package:flutter_hbb/models/state_model.dart';
 import 'package:flutter_hbb/tefway/design.dart';
+import 'package:flutter_hbb/tefway/diagnostics.dart';
 import 'package:flutter_hbb/tefway/notices.dart';
 import 'package:flutter_hbb/tefway/strings.dart';
 import 'package:flutter_hbb/tefway/widgets.dart';
@@ -162,6 +166,10 @@ class _TefwayClientHomePageState extends State<TefwayClientHomePage> {
 
   @override
   Widget build(BuildContext context) {
+    final diagnostics = tefwayDiagnostics(
+      coreError: _coreError,
+      onRetryCore: _refresh,
+    );
     return TefwayAppShell(
       maxWidth: 420,
       padding: const EdgeInsets.all(TefwaySpacing.md),
@@ -171,22 +179,9 @@ class _TefwayClientHomePageState extends State<TefwayClientHomePage> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Center(child: TefwayBrandMark(size: 40)),
-            const SizedBox(height: TefwaySpacing.md),
-            const Text(
-              TefwayStrings.productName,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w700,
-                color: TefwayColors.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 2),
-            const Text(
-              TefwayStrings.clientSubtitle,
-              textAlign: TextAlign.center,
-              style: TefwayTextStyles.label,
+            TefwayBrandHeader(
+              subtitle: TefwayStrings.clientSubtitle,
+              trailing: TefwayDiagnosticsButton(diagnostics: diagnostics),
             ),
             const SizedBox(height: TefwaySpacing.md),
             const Divider(height: 1, color: TefwayColors.border),
@@ -217,31 +212,23 @@ class _TefwayClientHomePageState extends State<TefwayClientHomePage> {
               textAlign: TextAlign.center,
               style: TefwayTextStyles.body,
             ),
-            const SizedBox(height: TefwaySpacing.sm),
+            const SizedBox(height: TefwaySpacing.xs),
             const Text(
               TefwayStrings.clientNoOutgoing,
               textAlign: TextAlign.center,
               style: TefwayTextStyles.caption,
             ),
+            // A blocking failure stays visible where it happens, even though
+            // the diagnostics panel also lists it.
             if (_coreError.isNotEmpty) ...[
               const SizedBox(height: TefwaySpacing.md),
               TefwayCoreErrorNotice(message: _coreError, onRetry: _refresh),
             ],
-            ..._notices(),
             const SizedBox(height: TefwaySpacing.md),
             TefwaySupportFooter(version: _version),
           ],
         ),
       ),
     );
-  }
-
-  List<Widget> _notices() {
-    final notices = tefwayPortableNotices();
-    if (notices.isEmpty) return const [];
-    return [
-      const SizedBox(height: TefwaySpacing.md),
-      tefwayNoticeColumn(notices),
-    ];
   }
 }
