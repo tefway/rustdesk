@@ -8,8 +8,6 @@ use std::{
 use bytes::Bytes;
 
 pub use connection::*;
-#[cfg(not(any(target_os = "android", target_os = "ios")))]
-use hbb_common::config::Config2;
 use hbb_common::tcp::{self, new_listener};
 use hbb_common::{
     allow_err,

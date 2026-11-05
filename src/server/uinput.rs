@@ -1328,7 +1328,7 @@ mod mouce {
 
     extern "C" {
         fn ioctl(fd: c_int, request: c_ulong, ...) -> c_int;
-        fn write(fd: c_int, buf: *mut InputEvent, count: usize) -> c_long;
+        fn write(fd: c_int, buf: *const InputEvent, count: usize) -> c_long;
     }
 
     #[derive(Debug, Copy, Clone)]
@@ -1468,7 +1468,7 @@ mod mouce {
 
             unsafe {
                 let count = size_of::<InputEvent>();
-                let written_bytes = write(fd, &mut event, count);
+                let written_bytes = write(fd, &event, count);
                 if written_bytes == -1 || written_bytes != count as c_long {
                     return Err(Error::new(
                         ErrorKind::Other,

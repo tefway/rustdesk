@@ -80,7 +80,7 @@ struct AnswererSlot;
 impl AnswererSlot {
     fn take() -> Option<Self> {
         WEBRTC_ANSWERERS
-            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |n| {
+            .try_update(Ordering::AcqRel, Ordering::Acquire, |n| {
                 (n < MAX_WEBRTC_ANSWERERS).then(|| n + 1)
             })
             .ok()
@@ -128,7 +128,7 @@ impl PunchPool {
 
     fn take(&'static self) -> Option<PunchSlot> {
         self.places
-            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |n| {
+            .try_update(Ordering::AcqRel, Ordering::Acquire, |n| {
                 (n < self.max).then(|| n + 1)
             })
             .ok()

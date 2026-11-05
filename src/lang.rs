@@ -33,8 +33,10 @@ mod lv;
 mod nb;
 mod nl;
 mod pl;
-mod pt_BR;
-mod pt_PT;
+#[path = "lang/pt_BR.rs"]
+mod pt_br;
+#[path = "lang/pt_PT.rs"]
+mod pt_pt;
 mod ro;
 mod ru;
 mod sc;
@@ -212,10 +214,10 @@ pub fn translate_locale(name: String, locale: &str) -> String {
         "ru" => ru::T.deref(),
         "eo" => eo::T.deref(),
         "id" => id::T.deref(),
-        "br" => pt_BR::T.deref(),
-        "pt" => pt_BR::T.deref(),
-        "pt-br" => pt_BR::T.deref(),
-        "pt-pt" => pt_PT::T.deref(),
+        "br" => pt_br::T.deref(),
+        "pt" => pt_br::T.deref(),
+        "pt-br" => pt_br::T.deref(),
+        "pt-pt" => pt_pt::T.deref(),
         "tr" => tr::T.deref(),
         "cs" => cs::T.deref(),
         "da" => da::T.deref(),

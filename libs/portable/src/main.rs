@@ -190,7 +190,7 @@ fn setup(
     write_meta(&dir, ts, &metadata_paths);
     #[cfg(windows)]
     win::copy_runtime_broker(&dir);
-    #[cfg(linux)]
+    #[cfg(target_os = "linux")]
     reader.configure_permission(&dir);
     Some(dir.join(&reader.exe))
 }
