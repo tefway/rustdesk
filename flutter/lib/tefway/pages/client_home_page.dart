@@ -33,12 +33,16 @@ class TefwayClientHomePage extends StatefulWidget {
 }
 
 class _TefwayClientHomePageState extends State<TefwayClientHomePage> {
-  // The core sizes this window itself; the layout below is built to fit these
-  // 744px without scrolling, and scrolls if the user's text scale grows.
-  static const _windowSize = Size(440, 744);
-  // Keeps the whole window inside a 1280x720 screen once the title bar and the
-  // desktop panel take their share.
+  /// Largura da janela do cliente, em pixeis lógicos.
+  static const double _windowWidth = 400;
+  /// Altura mínima segura da janela do cliente, em pixeis lógicos.
+  /// Garante que todo o conteúdo inicial caiba sem scroll vertical.
+  static const double _minWindowHeight = 500;
+  /// Margem entre a janela e a borda do display mais alto.
   static const _screenMargin = 48.0;
+  /// Com a barra de título oculta, o retângulo externo da janela no Windows
+  /// excede a área útil do Flutter (moldura e sombra nas laterais e na base).
+  static const Size _windowFrame = Size(16.0, 9.0);
 
   Timer? _timer;
   SvcStatus _svcStatus = SvcStatus.notReady;
@@ -46,6 +50,10 @@ class _TefwayClientHomePageState extends State<TefwayClientHomePage> {
   String _id = '';
   String _version = '';
   String _coreError = '';
+
+  /// Chave do card de conteúdo, usada apenas para medir a altura quando um
+  /// aviso de erro aparece e a janela precisa crescer.
+  final GlobalKey _cardKey = GlobalKey();
 
   @override
   void initState() {
@@ -55,14 +63,52 @@ class _TefwayClientHomePageState extends State<TefwayClientHomePage> {
     _timer = periodic_immediate(const Duration(seconds: 1), _refresh);
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       try {
-        await windowManager.setSize(_fitToScreen());
+        await _sizeWindow(centerOnScreen: true);
       } catch (e) {
         debugPrint('Tefway: failed to size the client window: $e');
       }
     });
   }
 
-  Size _fitToScreen() {
+  /// Ajusta a janela nativa ao tamanho mínimo seguro (ou maior, se necessário
+  /// para acomodar um aviso de erro). Nunca reduz abaixo da altura mínima, para
+  /// evitar scroll vertical no estado normal.
+  Future<void> _sizeWindow({
+    bool centerOnScreen = false,
+    bool growForError = false,
+  }) async {
+    if (!mounted) return;
+
+    double contentHeight = _minWindowHeight;
+
+    if (growForError && _coreError.isNotEmpty) {
+      final renderObject = _cardKey.currentContext?.findRenderObject();
+      if (renderObject is RenderBox) {
+        final measured = renderObject.size.height +
+            2 * TefwaySpacing.md +
+            _windowFrame.height;
+        if (measured > contentHeight) {
+          contentHeight = measured;
+        }
+      }
+    }
+
+    final height = await _fitToScreen(contentHeight);
+    final size = Size(_windowWidth + _windowFrame.width,
+        height + _windowFrame.height);
+    try {
+      await windowManager.setSize(size);
+      if (centerOnScreen) {
+        await windowManager.center();
+      }
+    } catch (e) {
+      debugPrint('Tefway: failed to size the client window: $e');
+    }
+  }
+
+  /// Limita a altura à área útil do display mais alto, deixando a margem de
+  // tela; não altera quando o conteúdo já cabe.
+  Future<double> _fitToScreen(double height) async {
     try {
       final displays = jsonDecode(bind.mainGetDisplays()) as List<dynamic>;
       var tallest = 0.0;
@@ -71,13 +117,13 @@ class _TefwayClientHomePageState extends State<TefwayClientHomePage> {
         if (h > tallest) tallest = h;
       }
       final available = tallest - _screenMargin;
-      if (available > 0 && available < _windowSize.height) {
-        return Size(_windowSize.width, available);
+      if (available > 0 && available < height) {
+        return available;
       }
     } catch (e) {
       debugPrint('Tefway: failed to read the display size: $e');
     }
-    return _windowSize;
+    return height;
   }
 
   @override
@@ -119,12 +165,22 @@ class _TefwayClientHomePageState extends State<TefwayClientHomePage> {
     }
     final coreError = await bind.mainGetError();
     if (!mounted) return;
+    final errorChanged = coreError != _coreError;
     setState(() {
       _svcStatus = status;
       _connectionCount = count;
       _id = gFFI.serverModel.serverId.text;
       _coreError = coreError;
     });
+    if (errorChanged) {
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        try {
+          await _sizeWindow(centerOnScreen: false, growForError: true);
+        } catch (e) {
+          debugPrint('Tefway: failed to resize the client window for the error notice: $e');
+        }
+      });
+    }
   }
 
   void _copyId() {
@@ -173,60 +229,63 @@ class _TefwayClientHomePageState extends State<TefwayClientHomePage> {
     return TefwayAppShell(
       maxWidth: 420,
       padding: const EdgeInsets.all(TefwaySpacing.md),
-      child: TefwaySurfaceCard(
-        padding: const EdgeInsets.all(TefwaySpacing.md),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            TefwayBrandHeader(
-              subtitle: TefwayStrings.clientSubtitle,
-              trailing: TefwayDiagnosticsButton(diagnostics: diagnostics),
-            ),
-            const SizedBox(height: TefwaySpacing.md),
-            const Divider(height: 1, color: TefwayColors.border),
-            const SizedBox(height: TefwaySpacing.lg),
-            TefwayDeviceIdCard(
-              label: TefwayStrings.clientIdLabel,
-              id: formatID(trimID(_id)),
-              onCopy: _copyId,
-            ),
-            const SizedBox(height: TefwaySpacing.lg),
-            Container(
-              padding: const EdgeInsets.all(TefwaySpacing.md),
-              decoration: BoxDecoration(
-                color: TefwayColors.inputFill,
-                borderRadius: TefwayRadius.mdAll,
-                border: Border.all(color: TefwayColors.border, width: 1),
+      child: Container(
+        key: _cardKey,
+        child: TefwaySurfaceCard(
+          padding: const EdgeInsets.all(TefwaySpacing.md),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              TefwayBrandHeader(
+                subtitle: TefwayStrings.clientSubtitle,
+                trailing: TefwayDiagnosticsButton(diagnostics: diagnostics),
               ),
-              child: _availability(),
-            ),
-            if (_connectionCount > 0) ...[
-              const SizedBox(height: TefwaySpacing.sm),
-              Text(TefwayStrings.clientSessionsHint,
-                  style: TefwayTextStyles.caption),
-            ],
-            const SizedBox(height: TefwaySpacing.md),
-            const Text(
-              TefwayStrings.clientGuidance,
-              textAlign: TextAlign.center,
-              style: TefwayTextStyles.body,
-            ),
-            const SizedBox(height: TefwaySpacing.xs),
-            const Text(
-              TefwayStrings.clientNoOutgoing,
-              textAlign: TextAlign.center,
-              style: TefwayTextStyles.caption,
-            ),
-            // A blocking failure stays visible where it happens, even though
-            // the diagnostics panel also lists it.
-            if (_coreError.isNotEmpty) ...[
               const SizedBox(height: TefwaySpacing.md),
-              TefwayCoreErrorNotice(message: _coreError, onRetry: _refresh),
+              const Divider(height: 1, color: TefwayColors.border),
+              const SizedBox(height: TefwaySpacing.lg),
+              TefwayDeviceIdCard(
+                label: TefwayStrings.clientIdLabel,
+                id: formatID(trimID(_id)),
+                onCopy: _copyId,
+              ),
+              const SizedBox(height: TefwaySpacing.lg),
+              Container(
+                padding: const EdgeInsets.all(TefwaySpacing.md),
+                decoration: BoxDecoration(
+                  color: TefwayColors.inputFill,
+                  borderRadius: TefwayRadius.mdAll,
+                  border: Border.all(color: TefwayColors.border, width: 1),
+                ),
+                child: _availability(),
+              ),
+              if (_connectionCount > 0) ...[
+                const SizedBox(height: TefwaySpacing.sm),
+                Text(TefwayStrings.clientSessionsHint,
+                    style: TefwayTextStyles.caption),
+              ],
+              const SizedBox(height: TefwaySpacing.md),
+              const Text(
+                TefwayStrings.clientGuidance,
+                textAlign: TextAlign.center,
+                style: TefwayTextStyles.body,
+              ),
+              const SizedBox(height: TefwaySpacing.xs),
+              const Text(
+                TefwayStrings.clientNoOutgoing,
+                textAlign: TextAlign.center,
+                style: TefwayTextStyles.caption,
+              ),
+              // A blocking failure stays visible where it happens, even though
+              // the diagnostics panel also lists it.
+              if (_coreError.isNotEmpty) ...[
+                const SizedBox(height: TefwaySpacing.md),
+                TefwayCoreErrorNotice(message: _coreError, onRetry: _refresh),
+              ],
+              const SizedBox(height: TefwaySpacing.md),
+              TefwaySupportFooter(version: _version),
             ],
-            const SizedBox(height: TefwaySpacing.md),
-            TefwaySupportFooter(version: _version),
-          ],
+          ),
         ),
       ),
     );
