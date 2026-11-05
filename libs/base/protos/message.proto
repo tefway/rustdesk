@@ -86,6 +86,8 @@ message LoginRequest {
   string avatar = 17;
   bytes trusted_device_v2_token = 18;
   bool trusted_device_v2_supported = 19;
+  // Tefway technician authorization; empty outside the Tefway profiles.
+  bytes tefway_grant = 20;
 }
 
 message Terminal {

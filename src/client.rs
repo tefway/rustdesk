@@ -1694,6 +1694,9 @@ impl Client {
                 // under our root), so no fingerprint binding is possible. Fall through like TCP's
                 // non-secure path with is_secured() false: bailing would only move the session to
                 // a relay that fails the same check and then runs in plaintext.
+                if crate::tefway::requires_verified_peer() {
+                    bail!("Tefway: peer identity could not be verified; refusing the session");
+                }
                 // send an empty message out in case server is setting up secure and waiting for first message
                 conn.send(&Message::new()).await?;
                 return Ok(option_pk);
@@ -1751,12 +1754,18 @@ impl Client {
                                 if is_webrtc {
                                     bail!("WebRTC handshake id mismatch (possible MITM)");
                                 }
+                                if crate::tefway::requires_verified_peer() {
+                                    bail!("Tefway: peer id mismatch; refusing the session");
+                                }
                                 log::error!("Handshake failed: sign failure");
                                 conn.send(&Message::new()).await?;
                             }
                         } else {
                             if is_webrtc {
                                 bail!("WebRTC peer identity could not be verified (refusing unbound channel)");
+                            }
+                            if crate::tefway::requires_verified_peer() {
+                                bail!("Tefway: peer key mismatch; refusing an unverified session");
                             }
                             // fall back to non-secure connection in case pk mismatch
                             log::info!("pk mismatch, fall back to non-secure");
@@ -1768,12 +1777,18 @@ impl Client {
                         if is_webrtc {
                             bail!("WebRTC handshake received an unexpected message type");
                         }
+                        if crate::tefway::requires_verified_peer() {
+                            bail!("Tefway: unexpected handshake message; refusing the session");
+                        }
                         log::error!("Handshake failed: invalid message type");
                         conn.send(&Message::new()).await?;
                     }
                 } else {
                     if is_webrtc {
                         bail!("WebRTC handshake received a malformed message");
+                    }
+                    if crate::tefway::requires_verified_peer() {
+                        bail!("Tefway: malformed handshake; refusing the session");
                     }
                     log::error!("Handshake failed: invalid message format");
                     conn.send(&Message::new()).await?;
@@ -5070,6 +5085,12 @@ pub async fn confirm_insecure_connection(
     interface: &impl Interface,
     receiver: &mut UnboundedReceiver<Data>,
 ) -> bool {
+    // A Tefway session is never offered as "insecure but continue": the
+    // profile requires a verified peer, so a downgrade is a refusal.
+    if crate::tefway::requires_verified_peer() {
+        log::warn!("Tefway: insecure connection refused without offering a downgrade");
+        return false;
+    }
     interface.msgbox(
         "insecure-connection-nocancel-hasclose",
         "Insecure Connection",

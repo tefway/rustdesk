@@ -8,6 +8,9 @@
 use base::config::keys;
 use hbb_common::log;
 
+#[path = "tefway/auth.rs"]
+pub mod auth;
+
 /// Tefway rendezvous (ID) server. The default rendezvous port 21116 is used,
 /// so the value is a bare host.
 pub const RENDEZVOUS_SERVER: &str = "remote.tefway.com.br";
@@ -89,6 +92,13 @@ pub fn refuses_incoming() -> bool {
 #[inline]
 pub fn requires_manual_approval() -> bool {
     is_client()
+}
+
+/// Tefway profiles only run a session whose peer identity the core verified.
+/// A stock build keeps the inherited non-secure fallback untouched.
+#[inline]
+pub fn requires_verified_peer() -> bool {
+    profile() != Profile::Standard
 }
 
 /// Server-side options the build forces. Values live in `OVERWRITE_SETTINGS`,

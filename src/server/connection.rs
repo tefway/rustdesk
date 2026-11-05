@@ -2924,6 +2924,35 @@ impl Connection {
             if !self.check_login_scope(&lr).await {
                 return false;
             }
+            // Tefway: knowing the ID is not authorization. The Client verifies the
+            // technician grant before any other login processing, and refuses on any
+            // failure. Stock builds skip this entirely.
+            if crate::tefway::is_client() {
+                let device_id = hbb_common::config::Config::get_id();
+                match crate::tefway::auth::authorize_login(&lr, &device_id) {
+                    Ok(technician) => crate::tefway::auth::audit(
+                        "login-authorised",
+                        &lr.my_id,
+                        Some(&technician),
+                        "grant verified; waiting for local consent",
+                    ),
+                    Err(denial) => {
+                        log::warn!(
+                            "Tefway: refused login from {}: {}",
+                            lr.my_id,
+                            denial.code()
+                        );
+                        crate::tefway::auth::audit(
+                            "login-denied",
+                            &lr.my_id,
+                            None,
+                            denial.code(),
+                        );
+                        self.send_login_error(denial.message()).await;
+                        return false;
+                    }
+                }
+            }
             self.awaiting_2fa = false;
             self.trusted_device = None;
             if !self.authorized {
