@@ -14,10 +14,11 @@
 //! * an issue time and a hard expiry.
 //!
 //! The Client verifies the signature against a pinned public key and refuses
-//! the login on any failure. There is no unauthenticated path: with no trust
-//! anchor, no grant, a bad signature, a stale or replayed nonce, or a mismatch
-//! on either identity, the session does not start. Stock RustDesk builds never
-//! reach this code.
+//! the login on any failure. The grant check is only enforced when a trust
+//! anchor is compiled in (`TEFWAY_AUTH_PUBKEY`); with no anchor, the call is
+//! skipped and the normal RustDesk authentication flow (password, click
+//! approval, consent, encrypted session) applies instead. Stock RustDesk
+//! builds never reach this code.
 //!
 //! The wire format is deliberately simple and versioned so the identity
 //! service can be implemented independently of this crate:
@@ -290,6 +291,32 @@ fn nonce_is_fresh(nonce: &[u8], expires_at: i64, now: i64) -> bool {
 /// Reads the pinned anchor of this build.
 pub fn trust_anchor() -> Option<&'static str> {
     AUTH_PUBKEY_B64.filter(|key| !key.trim().is_empty())
+}
+
+/// Modo de autenticação do Client Tefway.
+///
+/// `Pilot` — sem serviço de identidade; o fluxo nativo do RustDesk
+/// (senha, aprovação por clique, consentimento, sessão criptografada)
+/// é suficiente. `Corporate` — serviço de identidade configurado;
+/// technician grant é obrigatório para toda conexão.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AuthMode {
+    Pilot,
+    Corporate,
+}
+
+/// Retorna o modo de autenticação vigente neste build.
+///
+/// Quando `TEFWAY_AUTH_PUBKEY` está definido (mesmo que inválido), o modo é
+/// Corporate e o grant é exigido; uma chave inválida faz `authorize_login()`
+/// rejeitar todos os logins (fail-closed). Quando não está definido, o modo é
+/// Pilot e o fluxo nativo do RustDesk se aplica.
+pub fn auth_mode() -> AuthMode {
+    if trust_anchor().is_some() {
+        AuthMode::Corporate
+    } else {
+        AuthMode::Pilot
+    }
 }
 
 fn app_dir() -> Option<std::path::PathBuf> {

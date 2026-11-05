@@ -2924,10 +2924,16 @@ impl Connection {
             if !self.check_login_scope(&lr).await {
                 return false;
             }
-            // Tefway: knowing the ID is not authorization. The Client verifies the
-            // technician grant before any other login processing, and refuses on any
-            // failure. Stock builds skip this entirely.
-            if crate::tefway::is_client() {
+            // Tefway: knowing the ID is not authorization. When an identity
+            // service is configured (Corporate auth mode), the Client verifies
+            // the technician grant before any other login processing, and
+            // refuses on any failure. In Pilot mode (no identity service), the
+            // normal RustDesk authentication flow (password, click approval,
+            // consent, encrypted session) applies instead. Stock builds skip
+            // this entirely.
+            if crate::tefway::is_client()
+                && crate::tefway::auth::auth_mode() == crate::tefway::auth::AuthMode::Corporate
+            {
                 let device_id = hbb_common::config::Config::get_id();
                 match crate::tefway::auth::authorize_login(&lr, &device_id) {
                     Ok(technician) => crate::tefway::auth::audit(
