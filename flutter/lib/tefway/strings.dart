@@ -72,13 +72,34 @@ class TefwayStrings {
       'Este aplicativo não inicia conexões para outros computadores.';
 
   // Consent (incoming session, Client side).
-  static const consentSubtitle = 'Solicitação de suporte remoto';
+  static const consentTitle = 'Solicitação de acesso remoto';
+  static const consentSubtitle = 'Um técnico deseja acessar este computador';
   static const consentWaiting = 'Aguardando sua autorização';
-  static const consentPeerLabel = 'Solicitado por';
-  static const consentCapabilities = 'Se você permitir, o técnico poderá';
-  static const consentAllow = 'Permitir acesso';
-  static const consentAllowElevate = 'Permitir e elevar';
+  static const consentPeerLabel = 'Solicitante';
+  static const consentPeerNameLabel = 'Nome informado';
+  static const consentPeerIdLabel = 'ID do dispositivo';
+  static const consentIdentityVerified = 'Identidade verificada';
+  static const consentIdentityVerifiedDetail =
+      'A assinatura do técnico foi validada pelo núcleo antes desta janela.';
+  static const consentIdentityUnverified = 'Identidade ainda não verificada';
+  static const consentIdentityUnverifiedDetail =
+      'O nome acima foi informado pelo solicitante. Nenhum serviço de identidade validou esta sessão.';
+  static const consentSecurityTitle = 'Informações de segurança';
+  static const consentSecurityLocalApproval = 'Aprovação local obrigatória';
+  static const consentSecurityLocalApprovalDetail =
+      'Nada é liberado sem o seu clique nesta janela.';
+  static const consentCapabilities = 'Permissões deste acesso';
+  static const consentCapabilitiesHint = 'Se você permitir, o técnico poderá:';
+  static const consentAllow = 'Permitir';
+  static const consentAllowElevate = 'Permitir com acesso elevado';
   static const consentRefuse = 'Recusar';
+  static const consentElevationUnavailable = 'Acesso elevado indisponível';
+  static const consentElevationUnsupported =
+      'Este sistema não oferece o mecanismo de elevação exigido. O acesso comum continua disponível.';
+  static const consentElevationSession =
+      'A elevação não está disponível para esta sessão. O acesso comum continua disponível.';
+  static const consentElevationDesktopOnly =
+      'Acesso elevado se aplica apenas a sessões de área de trabalho.';
   static const consentNote =
       'Você pode ajustar essas permissões antes de aceitar. Nada é liberado sem este clique.';
   static const consentSessionNote =
@@ -176,9 +197,4 @@ class TefwayStrings {
   static const selinuxAction =
       'Se a captura falhar, peça ao administrador do computador para conferir '
       'o log de negações do SELinux. Não desative o SELinux.';
-
-  // Consent.
-  static const consentPeerDeclared =
-      'Nome informado pelo solicitante. A identidade do técnico é verificada '
-      'pelo núcleo antes de qualquer liberação.';
 }

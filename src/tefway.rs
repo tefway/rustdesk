@@ -29,6 +29,11 @@ pub const MASTER_LOGIN_REFUSED: &str = "Tefway Remote Master does not accept inc
 /// Builtin options are not user preferences, so this cannot be rewritten.
 pub const PROFILE_OPTION: &str = "tefway-profile";
 
+/// Builtin option key reporting whether this build can verify a technician
+/// identity. `corporate` means a trust anchor is compiled in and the core
+/// rejects the login before the consent window when the grant is invalid.
+pub const AUTH_MODE_OPTION: &str = "tefway-auth-mode";
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Profile {
     /// No profile asked for: stock RustDesk.
@@ -130,7 +135,16 @@ pub fn server_options() -> Vec<(&'static str, &'static str)> {
 
 /// Builtin (non-preference) options the build forces.
 pub fn builtin_options() -> Vec<(&'static str, &'static str)> {
-    let mut options = vec![(PROFILE_OPTION, profile_id())];
+    let mut options = vec![
+        (PROFILE_OPTION, profile_id()),
+        (
+            AUTH_MODE_OPTION,
+            match auth::auth_mode() {
+                auth::AuthMode::Corporate => "corporate",
+                auth::AuthMode::Pilot => "pilot",
+            },
+        ),
+    ];
     if is_client() {
         options.push((keys::OPTION_DISABLE_CHANGE_PERMANENT_PASSWORD, "Y"));
         options.push((keys::OPTION_ALLOW_LOGON_SCREEN_PASSWORD, "N"));
@@ -240,6 +254,18 @@ mod tests {
         assert!(requires_manual_approval());
         assert!(is_incoming_only());
         assert!(!refuses_incoming());
+    }
+
+    #[test]
+    fn auth_mode_option_matches_the_compiled_mode() {
+        let expected = match auth::auth_mode() {
+            auth::AuthMode::Corporate => "corporate",
+            auth::AuthMode::Pilot => "pilot",
+        };
+        assert_eq!(
+            option_value(&builtin_options(), AUTH_MODE_OPTION),
+            Some(expected)
+        );
     }
 
     #[test]

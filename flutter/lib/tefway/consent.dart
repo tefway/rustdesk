@@ -31,20 +31,30 @@ class TefwayConsentCard extends StatefulWidget {
     super.key,
     required this.peerName,
     required this.peerId,
+    required this.identityVerified,
     required this.capabilities,
     required this.onToggle,
     required this.onAllow,
     required this.onRefuse,
     this.onAllowAndElevate,
+    this.elevationUnavailableReason,
   });
 
   final String peerName;
   final String peerId;
+
+  /// True only when the core verified the technician identity before this
+  /// window was reachable. A declared name is never treated as verified.
+  final bool identityVerified;
   final List<TefwayCapability> capabilities;
   final void Function(String key, bool enabled) onToggle;
   final VoidCallback onAllow;
   final VoidCallback onRefuse;
+
+  /// Null means this platform cannot elevate. The action stays visible and
+  /// disabled, with [elevationUnavailableReason] as the explanation.
   final VoidCallback? onAllowAndElevate;
+  final String? elevationUnavailableReason;
 
   @override
   State<TefwayConsentCard> createState() => _TefwayConsentCardState();
@@ -57,124 +67,202 @@ class _TefwayConsentCardState extends State<TefwayConsentCard> {
 
   @override
   Widget build(BuildContext context) {
-    // The core window hosting this card is 300x490, so the decision is pinned
-    // below the scrollable detail instead of scrolling out of reach.
     return ColoredBox(
       color: TefwayColors.deepNavy,
-      child: Column(
-        children: [
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(
-                  TefwaySpacing.xl, TefwaySpacing.xl, TefwaySpacing.xl, 0),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final horizontal =
+              constraints.maxWidth < 360 ? TefwaySpacing.lg : TefwaySpacing.xl;
+          return Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 560),
               child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const TefwayBrandHeader(
-                    subtitle: TefwayStrings.consentSubtitle,
-                    trailing: TefwayStatusChip(
-                      status: TefwayStatus.attention,
-                      label: TefwayStrings.consentWaiting,
+                  _header(horizontal),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      padding: EdgeInsets.fromLTRB(horizontal, TefwaySpacing.md,
+                          horizontal, TefwaySpacing.md),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _requesterCard(),
+                          const SizedBox(height: TefwaySpacing.md),
+                          _permissionsCard(),
+                          const SizedBox(height: TefwaySpacing.md),
+                          Text(
+                            TefwayStrings.consentSessionNote,
+                            style: TefwayTextStyles.caption,
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                  const SizedBox(height: TefwaySpacing.xl),
-                  TefwaySurfaceCard(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(TefwayStrings.consentPeerLabel,
-                            style: TefwayTextStyles.label),
-                        const SizedBox(height: TefwaySpacing.xs),
-                        Text(widget.peerName,
-                            style: TefwayTextStyles.sectionTitle),
-                        const SizedBox(height: 2),
-                        Text(widget.peerId, style: TefwayTextStyles.caption),
-                        const SizedBox(height: TefwaySpacing.sm),
-                        Text(TefwayStrings.consentPeerDeclared,
-                            style: TefwayTextStyles.caption),
-                        const SizedBox(height: TefwaySpacing.lg),
-                        Text(TefwayStrings.consentCapabilities,
-                            style: TefwayTextStyles.label),
-                        const SizedBox(height: TefwaySpacing.sm),
-                        for (final capability in widget.capabilities)
-                          _capabilityRow(capability),
-                        const SizedBox(height: TefwaySpacing.sm),
-                        Text(TefwayStrings.consentNote,
-                            style: TefwayTextStyles.bodySecondary),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: TefwaySpacing.lg),
-                  Text(
-                    TefwayStrings.consentSessionNote,
-                    style: TefwayTextStyles.caption,
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: TefwaySpacing.lg),
+                  _actions(horizontal),
                 ],
               ),
             ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _header(double horizontal) {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.fromLTRB(
+          horizontal, TefwaySpacing.lg, horizontal, TefwaySpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TefwayBrandHeader(
+            title: TefwayStrings.consentTitle,
+            subtitle: TefwayStrings.consentSubtitle,
+            markSize: 44,
+            titleStyle: TefwayTextStyles.appTitle.copyWith(fontSize: 17),
           ),
-          _actions(),
+          const SizedBox(height: TefwaySpacing.sm),
+          const TefwayStatusChip(
+            status: TefwayStatus.attention,
+            label: TefwayStrings.consentWaiting,
+          ),
         ],
       ),
     );
   }
 
-  Widget _actions() {
-    final refuse = TefwaySecondaryButton(
-      label: TefwayStrings.consentRefuse,
-      icon: Icons.block_rounded,
-      onPressed: widget.onRefuse,
+  Widget _requesterCard() {
+    final verified = widget.identityVerified;
+    return TefwaySurfaceCard(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(TefwayStrings.consentPeerLabel, style: TefwayTextStyles.label),
+          const SizedBox(height: TefwaySpacing.xs),
+          Text(widget.peerName, style: TefwayTextStyles.sectionTitle),
+          const SizedBox(height: TefwaySpacing.xs),
+          Text(TefwayStrings.consentPeerIdLabel,
+              style: TefwayTextStyles.caption),
+          const SizedBox(height: 2),
+          SelectableText(
+            widget.peerId,
+            style: TefwayTextStyles.caption.copyWith(
+              color: TefwayColors.textPrimary,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+          const SizedBox(height: TefwaySpacing.md),
+          TefwayStatusIndicator(
+            status: verified ? TefwayStatus.positive : TefwayStatus.attention,
+            label: verified
+                ? TefwayStrings.consentIdentityVerified
+                : TefwayStrings.consentIdentityUnverified,
+            detail: verified
+                ? TefwayStrings.consentIdentityVerifiedDetail
+                : TefwayStrings.consentIdentityUnverifiedDetail,
+          ),
+          const SizedBox(height: TefwaySpacing.md),
+          Text(TefwayStrings.consentSecurityTitle,
+              style: TefwayTextStyles.label),
+          const SizedBox(height: TefwaySpacing.xs),
+          const TefwayStatusIndicator(
+            status: TefwayStatus.positive,
+            label: TefwayStrings.consentSecurityLocalApproval,
+            detail: TefwayStrings.consentSecurityLocalApprovalDetail,
+            compact: true,
+          ),
+        ],
+      ),
     );
-    final allow = TefwayPrimaryButton(
-      label: TefwayStrings.consentAllow,
-      icon: Icons.check_rounded,
-      onPressed: widget.onAllow,
+  }
+
+  Widget _permissionsCard() {
+    return TefwaySurfaceCard(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(TefwayStrings.consentCapabilities,
+              style: TefwayTextStyles.label),
+          const SizedBox(height: 2),
+          Text(TefwayStrings.consentCapabilitiesHint,
+              style: TefwayTextStyles.bodySecondary),
+          const SizedBox(height: TefwaySpacing.sm),
+          for (final capability in widget.capabilities)
+            _capabilityRow(capability),
+          const SizedBox(height: TefwaySpacing.sm),
+          Text(TefwayStrings.consentNote,
+              style: TefwayTextStyles.bodySecondary),
+        ],
+      ),
     );
+  }
+
+  Widget _actions(double horizontal) {
     final elevate = widget.onAllowAndElevate;
+    final reason = widget.elevationUnavailableReason ??
+        TefwayStrings.consentElevationUnsupported;
+    final elevateButton = TefwaySecondaryButton(
+      label: TefwayStrings.consentAllowElevate,
+      icon: Icons.security_rounded,
+      onPressed: elevate,
+    );
+    // A fixed height clips the icon/label when the text wraps; keep 44 px as a
+    // minimum touch target and let the button grow with its content.
+    Widget action(Widget child) => ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 44),
+          child: child,
+        );
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(
-          horizontal: TefwaySpacing.xl, vertical: TefwaySpacing.md),
+      padding: EdgeInsets.fromLTRB(
+          horizontal, TefwaySpacing.md, horizontal, TefwaySpacing.md),
       decoration: const BoxDecoration(
         color: TefwayColors.deepNavy,
         border: Border(top: BorderSide(color: TefwayColors.border)),
       ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          // Two labels cannot share a ~250px row, so they stack while the chat
-          // panel is closed and sit side by side once the window widens.
-          final stacked = constraints.maxWidth < 300;
-          return Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
             children: [
-              if (stacked) ...[
-                allow,
-                const SizedBox(height: TefwaySpacing.sm),
-                refuse,
-              ] else
-                Row(
-                  children: [
-                    Expanded(child: refuse),
-                    const SizedBox(width: TefwaySpacing.md),
-                    Expanded(child: allow),
-                  ],
-                ),
-              if (elevate != null) ...[
-                const SizedBox(height: TefwaySpacing.sm),
-                TefwaySecondaryButton(
-                  label: TefwayStrings.consentAllowElevate,
-                  icon: Icons.security_rounded,
-                  onPressed: elevate,
-                ),
-              ],
+              Expanded(
+                child: action(TefwaySecondaryButton(
+                  label: TefwayStrings.consentRefuse,
+                  icon: Icons.block_rounded,
+                  onPressed: widget.onRefuse,
+                )),
+              ),
+              const SizedBox(width: TefwaySpacing.md),
+              Expanded(
+                child: action(TefwayPrimaryButton(
+                  label: TefwayStrings.consentAllow,
+                  icon: Icons.check_rounded,
+                  onPressed: widget.onAllow,
+                )),
+              ),
             ],
-          );
-        },
+          ),
+          const SizedBox(height: TefwaySpacing.sm),
+          action(elevate == null
+              ? Tooltip(message: reason, child: elevateButton)
+              : elevateButton),
+          if (elevate == null) ...[
+            const SizedBox(height: TefwaySpacing.xs),
+            Text(
+              reason,
+              style: TefwayTextStyles.caption,
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -188,7 +276,8 @@ class _TefwayConsentCardState extends State<TefwayConsentCard> {
           Icon(
             capability.icon,
             size: 16,
-            color: enabled ? TefwayColors.textPrimary : TefwayColors.textSecondary,
+            color:
+                enabled ? TefwayColors.textPrimary : TefwayColors.textSecondary,
           ),
           const SizedBox(width: TefwaySpacing.sm),
           Expanded(

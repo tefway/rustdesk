@@ -14,6 +14,15 @@ readonly SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly REPO_ROOT="$(cd -- "${SCRIPT_DIR}/../.." && pwd)"
 readonly DEFAULT_IMAGE="localhost/tefway-linux-builder:bookworm-rust1.99.1-flutter3.44.8"
 
+# The AppImage type-2 runtime is a separate download that appimagetool would
+# otherwise fetch at packaging time, which is not reproducible and fails when
+# GitHub is slow (HTTP 504). Cache one pinned build on the host, verify it, and
+# pass it to appimagetool with --runtime-file.
+readonly APPIMAGE_RUNTIME_VERSION="20251108"
+readonly APPIMAGE_RUNTIME_SHA256="2fca8b443c92510f1483a883f60061ad09b46b978b2631c807cd873a47ec260d"
+readonly APPIMAGE_RUNTIME_URL="https://github.com/AppImage/type2-runtime/releases/download/${APPIMAGE_RUNTIME_VERSION}/runtime-x86_64"
+readonly APPIMAGE_RUNTIME_CACHE="build/tefway/appimage-runtime-x86_64"
+
 PROFILE="${TEFWAY_PROFILE:-client}"
 IMAGE="${TEFWAY_LINUX_IMAGE:-$DEFAULT_IMAGE}"
 SKIP_IMAGE=0
@@ -41,6 +50,38 @@ EOF
 
 log() { printf '[tefway-linux] %s\n' "$*"; }
 die() { printf '[tefway-linux] ERROR: %s\n' "$*" >&2; exit 1; }
+
+# Fetch the pinned AppImage runtime once, on the host, and keep it in build/.
+# A cached file that does not match the pin is discarded instead of reused.
+ensure_appimage_runtime() {
+  local dest="${REPO_ROOT}/${APPIMAGE_RUNTIME_CACHE}"
+  local url="${TEFWAY_APPIMAGE_RUNTIME_URL:-$APPIMAGE_RUNTIME_URL}"
+  local sha tmp
+
+  if [[ -f "$dest" ]]; then
+    sha="$(sha256sum "$dest" | awk '{print $1}')"
+    if [[ "$sha" == "$APPIMAGE_RUNTIME_SHA256" ]]; then
+      log "reusing verified AppImage runtime ${dest}"
+      return 0
+    fi
+    log "discarding cached AppImage runtime (sha256 ${sha})"
+    rm -f "$dest"
+  fi
+
+  log "downloading AppImage runtime ${APPIMAGE_RUNTIME_VERSION}"
+  tmp="${dest}.part"
+  rm -f "$tmp"
+  curl -fL --retry 3 --retry-delay 2 --connect-timeout 20 -o "$tmp" "$url" \
+    || die "could not download the AppImage runtime from ${url}"
+  sha="$(sha256sum "$tmp" | awk '{print $1}')"
+  if [[ "$sha" != "$APPIMAGE_RUNTIME_SHA256" ]]; then
+    rm -f "$tmp"
+    die "AppImage runtime checksum mismatch: expected ${APPIMAGE_RUNTIME_SHA256}, got ${sha}"
+  fi
+  chmod 0644 "$tmp"
+  mv -f "$tmp" "$dest"
+  log "cached verified AppImage runtime at ${dest}"
+}
 
 parse_args() {
   while (($#)); do
@@ -113,6 +154,8 @@ host_main() {
   if ! flock -n 9; then
     die "another Tefway Linux build is running (${lock})"
   fi
+
+  ensure_appimage_runtime
 
   if ((SKIP_IMAGE == 0)); then
     log "building builder image ${IMAGE}"
@@ -372,6 +415,13 @@ build_appimage() {
   local pkg="$1" exe="$2" out="$3" artifact="$4"
   local appdir="$out/appimage/AppDir"
   local target="$out/$artifact"
+  local runtime="/work/${APPIMAGE_RUNTIME_CACHE}"
+  local sha
+
+  [[ -f "$runtime" ]] || die "missing pinned AppImage runtime: $runtime"
+  sha="$(sha256sum "$runtime" | awk '{print $1}')"
+  [[ "$sha" == "$APPIMAGE_RUNTIME_SHA256" ]] \
+    || die "AppImage runtime checksum mismatch: expected ${APPIMAGE_RUNTIME_SHA256}, got ${sha}"
 
   rm -f "$target"
   # Deterministic archive timestamps when the checkout exposes one.
@@ -381,8 +431,9 @@ build_appimage() {
   export SOURCE_DATE_EPOCH="$epoch"
   export ARCH=x86_64
 
-  log "appimagetool: $target"
-  /opt/appimage/appimagetool --no-appstream "$appdir" "$target"
+  log "appimagetool: $target (runtime ${APPIMAGE_RUNTIME_VERSION})"
+  /opt/appimage/appimagetool --no-appstream --runtime-file "$runtime" \
+    "$appdir" "$target"
   [[ -f "$target" ]] || die "appimagetool did not produce ${target}"
   chmod 0755 "$target"
 }
@@ -455,6 +506,8 @@ write_manifest() {
     --arg flutter "$flutter_version" \
     --arg features "$features" \
     --arg image "${TEFWAY_BUILDER_IMAGE:-unknown}" \
+    --arg runtime_version "$APPIMAGE_RUNTIME_VERSION" \
+    --arg runtime_sha "$APPIMAGE_RUNTIME_SHA256" \
     --arg built "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     '{
       profile: $profile,
@@ -470,6 +523,12 @@ write_manifest() {
       rustc: $rustc,
       flutter: $flutter,
       cargo_features: $features,
+      appimage_runtime: {
+        version: $runtime_version,
+        sha256: $runtime_sha,
+        source: "AppImage/type2-runtime release \($runtime_version)",
+        delivery: "--runtime-file from the host cache"
+      },
       embedded: {
         library_layout: "lib/librustdesk.so",
         rust_core: "usr/lib/\($pkg)/lib/librustdesk.so",

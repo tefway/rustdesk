@@ -130,12 +130,16 @@ class TefwayBrandHeader extends StatelessWidget {
   const TefwayBrandHeader({
     super.key,
     required this.subtitle,
+    this.title,
     this.trailing,
     this.markSize = 40,
     this.titleStyle,
   });
 
   final String subtitle;
+
+  /// Overrides the product name when the surface has its own heading.
+  final String? title;
   final Widget? trailing;
   final double markSize;
   final TextStyle? titleStyle;
@@ -153,7 +157,7 @@ class TefwayBrandHeader extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                TefwayStrings.productName,
+                title ?? TefwayStrings.productName,
                 style: titleStyle ?? TefwayTextStyles.appTitle,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -191,7 +195,11 @@ class TefwayPrimaryButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final child = Text(label, style: const TextStyle(fontWeight: FontWeight.w600));
+    final child = Text(
+      label,
+      style: const TextStyle(fontWeight: FontWeight.w600),
+      textAlign: TextAlign.center,
+    );
     return ElevatedButton(
       onPressed: onPressed,
       style: ElevatedButton.styleFrom(
@@ -200,11 +208,12 @@ class TefwayPrimaryButton extends StatelessWidget {
       ),
       child: icon == null
           ? child
-          : Row(
-              mainAxisSize: MainAxisSize.min,
+          : Wrap(
+              alignment: WrapAlignment.center,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: TefwaySpacing.sm,
               children: [
                 Icon(icon, size: 16, color: TefwayColors.textPrimary),
-                const SizedBox(width: TefwaySpacing.sm),
                 child,
               ],
             ),
@@ -232,15 +241,20 @@ class TefwaySecondaryButton extends StatelessWidget {
       style: OutlinedButton.styleFrom(
         minimumSize: const Size(0, 36),
         padding: const EdgeInsets.symmetric(horizontal: TefwaySpacing.md),
+        side: const BorderSide(color: TefwayColors.border),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
+      child: Wrap(
+        alignment: WrapAlignment.center,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: TefwaySpacing.sm,
         children: [
-          if (icon != null) ...[
+          if (icon != null)
             Icon(icon, size: 15, color: TefwayColors.textSecondary),
-            const SizedBox(width: TefwaySpacing.sm),
-          ],
-          Text(label, style: TefwayTextStyles.bodySecondary),
+          Text(
+            label,
+            style: TefwayTextStyles.bodySecondary,
+            textAlign: TextAlign.center,
+          ),
         ],
       ),
     );
@@ -319,11 +333,12 @@ class TefwayStatusChip extends StatelessWidget {
         borderRadius: TefwayRadius.smAll,
         border: Border.all(color: TefwayColors.border, width: 1),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
+      child: Wrap(
+        alignment: WrapAlignment.start,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: 6,
         children: [
           Icon(visual.icon, size: 13, color: visual.color),
-          const SizedBox(width: 6),
           Text(
             label,
             style: TefwayTextStyles.statusLabel.copyWith(color: visual.color),

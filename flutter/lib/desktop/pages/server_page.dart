@@ -399,6 +399,11 @@ Widget buildTefwayConsentCard(Client client) {
       bind.mainGetBuildinOption(
               key: kOptionHideElevateButtonInAcceptWindow) !=
           'Y';
+  final elevationReason = client.type_() != ClientType.remote
+      ? TefwayStrings.consentElevationDesktopOnly
+      : !bind.cmCanElevate()
+          ? TefwayStrings.consentElevationUnsupported
+          : TefwayStrings.consentElevationSession;
   final capabilities = <TefwayCapability>[
     if (client.type_() == ClientType.camera) ...[
       TefwayCapability(
@@ -469,6 +474,7 @@ Widget buildTefwayConsentCard(Client client) {
   return TefwayConsentCard(
     peerName: client.name.isEmpty ? client.peerId : client.name,
     peerId: client.peerId,
+    identityVerified: tefwayIdentityVerified(),
     capabilities: capabilities,
     onToggle: (key, enabled) => checkClickTime(client.id, () {
       bind.cmSwitchPermission(connId: client.id, name: key, enabled: enabled);
@@ -485,6 +491,7 @@ Widget buildTefwayConsentCard(Client client) {
               windowManager.minimize();
             })
         : null,
+    elevationUnavailableReason: canElevate ? null : elevationReason,
     onRefuse: () => checkClickTime(client.id, () {
       bind.cmCloseConnection(connId: client.id);
     }),

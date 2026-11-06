@@ -13,7 +13,7 @@ use hbb_common::{
     allow_err,
     anyhow::Context,
     bail,
-    config::{Config, CONNECT_TIMEOUT, RELAY_PORT},
+    config::{Config, Config2, CONNECT_TIMEOUT, RELAY_PORT},
     log,
     protobuf::{Enum, Message as _},
     rendezvous_proto::*,
