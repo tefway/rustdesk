@@ -393,17 +393,19 @@ Widget buildConnectionCard(Client client) {
 
 Widget buildTefwayConsentCard(Client client) {
   final model = gFFI.serverModel;
+  final elevationHiddenByPolicy = bind.mainGetBuildinOption(
+          key: kOptionHideElevateButtonInAcceptWindow) ==
+      'Y';
   final canElevate = client.type_() == ClientType.remote &&
       bind.cmCanElevate() &&
       model.showElevation &&
-      bind.mainGetBuildinOption(
-              key: kOptionHideElevateButtonInAcceptWindow) !=
-          'Y';
-  final elevationReason = client.type_() != ClientType.remote
-      ? TefwayStrings.consentElevationDesktopOnly
-      : !bind.cmCanElevate()
-          ? TefwayStrings.consentElevationUnsupported
-          : TefwayStrings.consentElevationSession;
+      !elevationHiddenByPolicy;
+  final elevationReason = tefwayElevationUnavailableReason(
+    desktopSession: client.type_() == ClientType.remote,
+    mechanismSupported: bind.cmCanElevate(),
+    sessionAllows: model.showElevation,
+    hiddenByPolicy: elevationHiddenByPolicy,
+  );
   final capabilities = <TefwayCapability>[
     if (client.type_() == ClientType.camera) ...[
       TefwayCapability(
@@ -474,7 +476,7 @@ Widget buildTefwayConsentCard(Client client) {
   return TefwayConsentCard(
     peerName: client.name.isEmpty ? client.peerId : client.name,
     peerId: client.peerId,
-    identityVerified: tefwayIdentityVerified(),
+    verifiedName: client.tefwayVerifiedName,
     capabilities: capabilities,
     onToggle: (key, enabled) => checkClickTime(client.id, () {
       bind.cmSwitchPermission(connId: client.id, name: key, enabled: enabled);

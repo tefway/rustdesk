@@ -11,7 +11,6 @@ const String kTefwayMarkAsset = 'assets/tefway_mark.png';
 
 const String _kMasterProfile = 'master';
 const String _kClientProfile = 'client';
-const String _kCorporateAuth = 'corporate';
 
 /// Which product this binary is. Baked in by the Rust build (`TEFWAY_PROFILE`)
 /// and reported through a builtin option, so the UI cannot disagree with the
@@ -23,12 +22,6 @@ bool isTefwayMaster() => tefwayProfile() == _kMasterProfile;
 bool isTefwayClient() => tefwayProfile() == _kClientProfile;
 
 bool isTefwayBuild() => isTefwayMaster() || isTefwayClient();
-
-/// True only when the core verifies the technician grant before this window is
-/// reachable. In Pilot mode the requester's name is declared, not verified.
-bool tefwayIdentityVerified() =>
-    isTefwayBuild() &&
-    bind.mainGetBuildinOption(key: 'tefway-auth-mode') == _kCorporateAuth;
 
 String tefwayProductName() {
   if (isTefwayMaster()) return 'Tefway Remote Master';

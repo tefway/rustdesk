@@ -414,6 +414,9 @@ pub struct Connection {
     server_audit_file: String,
     controlled_context: Option<ControlledContext>,
     lr: LoginRequest,
+    // Technician name from the grant `tefway::auth` verified for this login.
+    // Empty when nothing was verified; never populated from the peer's name.
+    tefway_verified_name: String,
     // Authentication retries may update credentials, but not the requested session scope.
     // A digest, so no peer-controlled strings are retained.
     login_scope: Option<[u8; 32]>,
@@ -622,6 +625,7 @@ impl Connection {
             server_audit_file: "".to_owned(),
             controlled_context,
             lr: Default::default(),
+            tefway_verified_name: String::new(),
             login_scope: None,
             peer_argb: 0u32,
             session_last_recv_time: None,
@@ -2397,6 +2401,7 @@ impl Connection {
             block_input: self.block_input,
             privacy_mode: self.privacy_mode,
             from_switch: self.from_switch,
+            tefway_verified_name: self.tefway_verified_name.clone(),
         });
     }
 
@@ -2936,12 +2941,15 @@ impl Connection {
             {
                 let device_id = hbb_common::config::Config::get_id();
                 match crate::tefway::auth::authorize_login(&lr, &device_id) {
-                    Ok(technician) => crate::tefway::auth::audit(
-                        "login-authorised",
-                        &lr.my_id,
-                        Some(&technician),
-                        "grant verified; waiting for local consent",
-                    ),
+                    Ok(technician) => {
+                        crate::tefway::auth::audit(
+                            "login-authorised",
+                            &lr.my_id,
+                            Some(&technician),
+                            "grant verified; waiting for local consent",
+                        );
+                        self.tefway_verified_name = technician.technician.name;
+                    }
                     Err(denial) => {
                         log::warn!(
                             "Tefway: refused login from {}: {}",

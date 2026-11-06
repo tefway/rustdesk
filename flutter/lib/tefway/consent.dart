@@ -10,6 +10,22 @@ import 'design.dart';
 import 'strings.dart';
 import 'widgets.dart';
 
+/// Why the elevated action is disabled for this session, or null when it is
+/// available. Each false input has a distinct cause and its own copy, so a
+/// missing mechanism is never reported as an administrator decision.
+String? tefwayElevationUnavailableReason({
+  required bool desktopSession,
+  required bool mechanismSupported,
+  required bool sessionAllows,
+  required bool hiddenByPolicy,
+}) {
+  if (!desktopSession) return TefwayStrings.consentElevationDesktopOnly;
+  if (!mechanismSupported) return TefwayStrings.consentElevationUnsupported;
+  if (hiddenByPolicy) return TefwayStrings.consentElevationPolicy;
+  if (!sessionAllows) return TefwayStrings.consentElevationSession;
+  return null;
+}
+
 /// One capability the remote side is asking for, with its current state.
 class TefwayCapability {
   const TefwayCapability({
@@ -31,7 +47,7 @@ class TefwayConsentCard extends StatefulWidget {
     super.key,
     required this.peerName,
     required this.peerId,
-    required this.identityVerified,
+    this.verifiedName,
     required this.capabilities,
     required this.onToggle,
     required this.onAllow,
@@ -40,12 +56,15 @@ class TefwayConsentCard extends StatefulWidget {
     this.elevationUnavailableReason,
   });
 
+  /// Name declared by the peer. Displayed only when the core did not verify an
+  /// identity for this session.
   final String peerName;
   final String peerId;
 
-  /// True only when the core verified the technician identity before this
-  /// window was reachable. A declared name is never treated as verified.
-  final bool identityVerified;
+  /// Name carried by the technician grant the core verified for this session.
+  /// Null or blank means no verified identity is available, and the card must
+  /// say so instead of presenting the declared name as authenticated.
+  final String? verifiedName;
   final List<TefwayCapability> capabilities;
   final void Function(String key, bool enabled) onToggle;
   final VoidCallback onAllow;
@@ -135,7 +154,8 @@ class _TefwayConsentCardState extends State<TefwayConsentCard> {
   }
 
   Widget _requesterCard() {
-    final verified = widget.identityVerified;
+    final verifiedName = widget.verifiedName?.trim() ?? '';
+    final verified = verifiedName.isNotEmpty;
     return TefwaySurfaceCard(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -143,7 +163,8 @@ class _TefwayConsentCardState extends State<TefwayConsentCard> {
         children: [
           Text(TefwayStrings.consentPeerLabel, style: TefwayTextStyles.label),
           const SizedBox(height: TefwaySpacing.xs),
-          Text(widget.peerName, style: TefwayTextStyles.sectionTitle),
+          Text(verified ? verifiedName : widget.peerName,
+              style: TefwayTextStyles.sectionTitle),
           const SizedBox(height: TefwaySpacing.xs),
           Text(TefwayStrings.consentPeerIdLabel,
               style: TefwayTextStyles.caption),
@@ -229,24 +250,27 @@ class _TefwayConsentCardState extends State<TefwayConsentCard> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: action(TefwaySecondaryButton(
-                  label: TefwayStrings.consentRefuse,
-                  icon: Icons.block_rounded,
-                  onPressed: widget.onRefuse,
-                )),
-              ),
-              const SizedBox(width: TefwaySpacing.md),
-              Expanded(
-                child: action(TefwayPrimaryButton(
-                  label: TefwayStrings.consentAllow,
-                  icon: Icons.check_rounded,
-                  onPressed: widget.onAllow,
-                )),
-              ),
-            ],
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: action(TefwaySecondaryButton(
+                    label: TefwayStrings.consentRefuse,
+                    icon: Icons.block_rounded,
+                    onPressed: widget.onRefuse,
+                  )),
+                ),
+                const SizedBox(width: TefwaySpacing.md),
+                Expanded(
+                  child: action(TefwayPrimaryButton(
+                    label: TefwayStrings.consentAllow,
+                    icon: Icons.check_rounded,
+                    onPressed: widget.onAllow,
+                  )),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: TefwaySpacing.sm),
           action(elevate == null

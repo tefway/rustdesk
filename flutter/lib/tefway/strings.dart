@@ -98,6 +98,8 @@ class TefwayStrings {
       'Este sistema não oferece o mecanismo de elevação exigido. O acesso comum continua disponível.';
   static const consentElevationSession =
       'A elevação não está disponível para esta sessão. O acesso comum continua disponível.';
+  static const consentElevationPolicy =
+      'O acesso elevado foi desativado por política administrativa. O acesso comum continua disponível.';
   static const consentElevationDesktopOnly =
       'Acesso elevado se aplica apenas a sessões de área de trabalho.';
   static const consentNote =

@@ -828,6 +828,9 @@ class Client {
   bool fromSwitch = false;
   bool inVoiceCall = false;
   bool incomingVoiceCall = false;
+  // Name from the technician grant the core verified for this session. Empty
+  // means no verified identity is available; the peer-supplied name is not one.
+  String tefwayVerifiedName = "";
 
   RxInt unreadChatMessageCount = 0.obs;
 
@@ -857,6 +860,7 @@ class Client {
     fromSwitch = json['from_switch'];
     inVoiceCall = json['in_voice_call'];
     incomingVoiceCall = json['incoming_voice_call'];
+    tefwayVerifiedName = json['tefway_verified_name'] ?? '';
   }
 
   Map<String, dynamic> toJson() {
@@ -882,6 +886,7 @@ class Client {
     data['from_switch'] = fromSwitch;
     data['in_voice_call'] = inVoiceCall;
     data['incoming_voice_call'] = incomingVoiceCall;
+    data['tefway_verified_name'] = tefwayVerifiedName;
     return data;
   }
 

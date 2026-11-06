@@ -35,7 +35,7 @@ Future<void> _pump(
   Size size = const Size(440, 620),
   double textScale = 1.0,
   double devicePixelRatio = 1.0,
-  bool identityVerified = false,
+  String? verifiedName,
   String peerName = 'Técnico Tefway',
   List<TefwayCapability> capabilities = _capabilities,
   VoidCallback? onAllow,
@@ -56,7 +56,7 @@ Future<void> _pump(
       body: TefwayConsentCard(
         peerName: peerName,
         peerId: '123456789',
-        identityVerified: identityVerified,
+        verifiedName: verifiedName,
         capabilities: capabilities,
         onToggle: onToggle ?? (_, __) {},
         onAllow: onAllow ?? () {},
@@ -151,18 +151,32 @@ void main() {
 
   testWidgets('a declared identity is never presented as verified',
       (tester) async {
-    await _pump(tester, identityVerified: false);
+    await _pump(tester);
     expect(find.text(TefwayStrings.consentIdentityUnverified), findsOneWidget);
     expect(find.text(TefwayStrings.consentIdentityVerified), findsNothing);
     expect(find.text(TefwayStrings.consentIdentityUnverifiedDetail),
         findsOneWidget);
   });
 
-  testWidgets('a core-verified identity is presented as verified',
+  testWidgets('a missing verified name keeps the identity unverified',
       (tester) async {
-    await _pump(tester, identityVerified: true);
+    await _pump(tester, verifiedName: '   ');
+    expect(find.text(TefwayStrings.consentIdentityUnverified), findsOneWidget);
+    expect(find.text(TefwayStrings.consentIdentityVerified), findsNothing);
+  });
+
+  testWidgets('a core-verified identity is presented with its verified name',
+      (tester) async {
+    await _pump(
+      tester,
+      peerName: 'Nome declarado pelo peer',
+      verifiedName: 'Ana Souza',
+    );
     expect(find.text(TefwayStrings.consentIdentityVerified), findsOneWidget);
     expect(find.text(TefwayStrings.consentIdentityUnverified), findsNothing);
+    expect(find.text('Ana Souza'), findsOneWidget);
+    expect(find.text('Nome declarado pelo peer'), findsNothing,
+        reason: 'a declared name must not stand in for the authenticated one');
   });
 
   testWidgets('permission switches call the real core callback',
@@ -264,5 +278,56 @@ void main() {
       expect(rect.bottom, lessThanOrEqualTo(490),
           reason: '$label scrolled out of the fixed footer');
     }
+  });
+
+  testWidgets('the two top actions keep the same height at 150% text scale',
+      (tester) async {
+    for (final size in const [Size(300, 490), Size(360, 560)]) {
+      await _pump(tester, size: size, textScale: 1.5, onAllowAndElevate: () {});
+
+      final refuse = tester.getSize(find.ancestor(
+        of: find.text(TefwayStrings.consentRefuse),
+        matching: find.byType(OutlinedButton),
+      ));
+      final allow = tester.getSize(find.ancestor(
+        of: find.text(TefwayStrings.consentAllow),
+        matching: find.byType(ElevatedButton),
+      ));
+      expect(refuse.height, allow.height,
+          reason: 'refuse and allow must not differ in height at $size');
+      expect(refuse.height, greaterThanOrEqualTo(44));
+
+      for (final label in [
+        TefwayStrings.consentRefuse,
+        TefwayStrings.consentAllow,
+        TefwayStrings.consentAllowElevate,
+      ]) {
+        final rect = tester.getRect(find.text(label));
+        expect(rect.bottom, lessThanOrEqualTo(size.height),
+            reason: '$label must stay inside the footer at $size');
+      }
+    }
+  });
+
+  test('the elevation reason follows the real cause', () {
+    String? reason({
+      bool desktopSession = true,
+      bool mechanismSupported = true,
+      bool sessionAllows = true,
+      bool hiddenByPolicy = false,
+    }) =>
+        tefwayElevationUnavailableReason(
+          desktopSession: desktopSession,
+          mechanismSupported: mechanismSupported,
+          sessionAllows: sessionAllows,
+          hiddenByPolicy: hiddenByPolicy,
+        );
+
+    expect(reason(), isNull);
+    expect(reason(desktopSession: false), TefwayStrings.consentElevationDesktopOnly);
+    expect(reason(mechanismSupported: false),
+        TefwayStrings.consentElevationUnsupported);
+    expect(reason(hiddenByPolicy: true), TefwayStrings.consentElevationPolicy);
+    expect(reason(sessionAllows: false), TefwayStrings.consentElevationSession);
   });
 }

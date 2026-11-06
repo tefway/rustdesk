@@ -357,6 +357,9 @@ pub enum Data {
         block_input: bool,
         privacy_mode: bool,
         from_switch: bool,
+        /// Technician name carried by the grant the core verified for this
+        /// login. Empty unless verification actually succeeded.
+        tefway_verified_name: String,
     },
     ChatMessage {
         text: String,
