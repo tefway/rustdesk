@@ -16,7 +16,7 @@ this" and "where is this flow implemented" from the code, not from memory.
 | Binary | `~/.local/bin/graphify` |
 | Graph | `graphify-out/graph.json` (local artifact, gitignored) |
 | Manifest | `graphify-out/manifest.json` (incremental cache metadata) |
-| Size at UX-05 | 22,240 nodes, 42,732 edges |
+| Size at UX-05 closeout | 22,311 nodes, 42,778 edges |
 
 Build / refresh:
 
@@ -96,8 +96,9 @@ The checklist that must hold for every change:
 1. Is the diff the smallest one that fixes the reported behaviour?
 2. Is existing code reused instead of duplicated or reshaped?
 3. Are new dependencies avoided? (No new package was added for UX-05.)
-4. Is new state avoided? (UX-05 added no new mutable state; the identity flag is
-   a read of a builtin option.)
+4. Is new state avoided? (UX-05 added no new mutable state; the follow-up
+   carries the verified technician name on the existing `Connection` and
+   `Client` records instead of adding a registry or cache.)
 5. Are the three consent actions still independent and always present?
 6. Does the feature-off path still run the old code?
 

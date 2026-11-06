@@ -23,9 +23,18 @@ merging upstream.
 | Origin | `git@github.com:tefway/rustdesk.git` |
 | Base commit | `2b72c4ca333f1dbd973f2d1e0da57305c323bf21` |
 | Work branch | `feat/tefway-remote-ux-05-consent` |
-| Implementation commit | `471f465374be26e1421baf83d5fe5321e29cce41` (artifacts built from this tree) |
-| Documentation commit | the commit immediately after the implementation commit; it adds only `docs/engineering/`, `docs/design/screenshots/consent-ux05-*` and this report |
+| Implementation commit | `471f465374be26e1421baf83d5fe5321e29cce41` — BUILD_COMMIT of the artifacts in §7.2 |
+| Documentation commit | `e01ec7645` — UX-05 report and engineering docs |
+| Closeout commit | `c202168efa0e144a4212705f80a9073442d5de30` — FINAL_HEAD: the code and tests for the corrections below |
+| Documentation update | the commit that records this closeout in the report, after FINAL_HEAD |
 | Push / merge / PR | none |
+
+BUILD_COMMIT and FINAL_HEAD are different by design: §7.2 records
+`471f46537` because that is the tree the first pair of AppImages was built
+from. The closeout corrected the consent findings below, rebuilt both artifacts
+from that tree, and committed it as `c202168ef` (FINAL_HEAD). Packaging ran
+before the commit, so the closeout manifests record `e01ec7645`; the tree they
+were built from is the one committed as `c202168ef`.
 
 `libs/hbb_common` is vendored (33 files); there is no gitlink in this tree.
 
@@ -34,7 +43,7 @@ merging upstream.
 | Gate | Evidence |
 | --- | --- |
 | Graphify discovery | `graphify 0.9.93` at `~/.local/bin/graphify`; `graphify extract . --code-only --no-cluster` completed |
-| Graphify code map | `graphify-out/graph.json`: 22,240 nodes, 42,732 edges |
+| Graphify code map | `graphify-out/graph.json`: 22,311 nodes, 42,778 edges (closeout re-extraction) |
 | Graphify impact | `graphify query "how does an incoming session reach the Tefway consent card"`; `graphify explain "TefwayConsentCard"`; `graphify path "buildTefwayConsentCard" "sendLoginResponse" --undirected` returned a 4-hop chain |
 | Context7 queries | REST API used for `window_manager`, Flutter layout/text scaling, anyhow, AppImage docs (see `docs/engineering/TOOLING.md` §2) |
 | Context7 references | Layout/scroll/scaling guidance applied to the card; `--runtime-file` applied to packaging |
@@ -42,6 +51,7 @@ merging upstream.
 | Skills applied | `graphify`, `rust-review`, `impeccable` (fallback to the repo design system), `systematic-debugging`, `test-driven-development`, `verification-before-completion`, `writing-plans` |
 | Ponytail pre-review | Minimal diff chosen before implementation: reuse existing widgets, no new dependency, no new mutable state, three actions never merged |
 | Ponytail final review | Second pass over `git diff 2b72c4ca..471f46537`: format-only hunks reverted, `strings.dart` diff limited to consent copy, `widgets.dart` diff limited to the header override, wrapping button/chip content and the secondary-button border |
+| Closeout review | Directed pass over the working-tree diff: verified name carried on existing records (no registry, no cache, no new FFI), one pure reason selector instead of nested ternaries, footer fix as two lines of layout. Graphify was re-extracted (22,311 nodes / 42,778 edges) and queried for the consent path |
 
 The permanent documents produced by these gates:
 
@@ -83,12 +93,20 @@ Elevated access is per session; nothing is persisted.
 
 ### 4.3 Identity honesty
 
-`tefway-auth-mode` is a new builtin option reported by the core
-(`src/tefway.rs`). `tefwayIdentityVerified()` returns true only for a Tefway
-build in `corporate` mode, where `authorize_login` verifies the technician grant
-before the consent window is reachable. In `pilot` mode the card shows
-**"Identidade ainda não verificada"** and states that the name was supplied by
-the requester. A declared name is never rendered as verified.
+Verification is a property of the session, not of the build. `authorize_login`
+returns a `VerifiedGrant` only after the grant signature, controller, device,
+nonce and expiry checks pass; `src/server/connection.rs` stores the grant's
+`technician.name` on the `Connection`, sends it as `tefway_verified_name` in
+`Data::Login`, and the CM exposes it as `Client.tefway_verified_name`. The card
+treats the identity as verified only when that core-provided name is non-blank,
+and then displays the verified name instead of the peer-declared one.
+
+The builtin option `tefway-auth-mode` remains a diagnostic of the compiled mode;
+it no longer marks a session verified. In `pilot` mode no grant is verified, so
+the card always shows **"Identidade ainda não verificada"** and states that the
+name was supplied by the requester. A declared name is never rendered as
+verified, and an empty verified name falls back to the unverified state rather
+than to the declared name.
 
 ### 4.4 Responsive behaviour
 
@@ -98,6 +116,11 @@ the requester. A declared name is never rendered as verified.
 - Action buttons keep a 44 px minimum height but grow with wrapped content; a
   fixed height clipped the icon outside the button at 300 px, which the golden
   render caught.
+- Refuse and Permitir share one height: the footer row is wrapped in
+  `IntrinsicHeight` and stretches its children, so at 150% text scale a wrapped
+  label cannot make one button taller than the other. Measured: 48/48 px at
+  440×620 @ 100%, 76/76 px at 300×490 and 360×560 @ 150%, 48/48 px at
+  1920×1080 @ 150%.
 - Secondary buttons carry an explicit border colour so a disabled action still
   looks like a button, not like loose text.
 - Horizontal padding drops from `xl` to `lg` below 360 px.
@@ -120,17 +143,20 @@ the requester. A declared name is never rendered as verified.
 
 | Check | Command | Result |
 | --- | --- | --- |
-| Widget tests (consent) | `flutter test test/tefway_consent_test.dart` | **9/9 passed** |
-| Widget tests (full suite) | `flutter test` | **175 passed, 1 skipped** |
+| Widget tests (consent) | `flutter test test/tefway_consent_test.dart` | **12/12 passed** (closeout) |
+| Widget tests (full suite) | `flutter test` | **178 passed, 1 skipped** (closeout) |
+| Test sensitivity | same test with the footer alignment reverted | **failed as expected** (exit 1), so the equal-height test pins the fix |
 | Static analysis | `dart analyze` on the six touched Dart files | 0 findings in new consent code; 7 pre-existing infos (deprecated `background`/`withOpacity`, curly braces) |
 | Rust tests | `cargo test --locked --lib --release --features flutter,linux-pkg-config tefway::` | **17/17 passed**, including `auth_mode_option_matches_the_compiled_mode` |
 | Rust check | `cargo check --locked --features flutter,linux-pkg-config --lib --release` | passed (warnings only) |
 
 Widget tests cover: three independent actions at 300×490; disabled elevation
-with reason and tooltip; enabled elevation not merged with allow; declared vs
-verified identity; permission callback; 7 viewports × 3 text scales × 3 DPRs;
-long names with all permissions on/off; 14-permission list with the footer still
-on screen.
+with reason and tooltip; enabled elevation not merged with allow; declared
+identity never verified; blank verified name stays unverified; core-verified
+name shown instead of the declared one; permission callback; 7 viewports × 3
+text scales × 3 DPRs; long names with all permissions on/off; 14-permission list
+with the footer still on screen; equal top-action heights at 150% text scale;
+elevation reason selection for each real cause.
 
 ## 7. AppImages
 
@@ -150,17 +176,29 @@ with HTTP 504 and was not reproducible. `docker/tefway-linux/build.sh` now:
 
 ### 7.2 Artifacts
 
-| Profile | Artifact | SHA-256 | Size |
-| --- | --- | --- | --- |
-| Client | `build/tefway/client/TefwayRemoteClient-Linux-x86_64.AppImage` | `803c81546ed5b5f57939db80e08ec6569d2daf15767c7ce4aed189d7e812ed17` | 31,377,912 B |
-| Master | `build/tefway/master/TefwayRemoteMaster-Linux-x86_64.AppImage` | `5833c1b09a09270c7c0686626b1897cc9b51c4c11aaf0c9c94b5cdbb66fc80d8` | 31,373,816 B |
+Two pairs exist. BUILD_COMMIT is `471f46537` (the UX-05 implementation); the
+closeout pair was built from the tree later committed as FINAL_HEAD
+`c202168ef`. Packaging ran before that commit, so the closeout manifests record
+`e01ec7645` with a dirty tree; the committed tree `c202168ef` is the exact
+source.
+
+| Build | Profile | Artifact | SHA-256 | Size |
+| --- | --- | --- | --- | --- |
+| BUILD_COMMIT `471f46537` | Client | `build/tefway/client/TefwayRemoteClient-Linux-x86_64.AppImage` | `803c81546ed5b5f57939db80e08ec6569d2daf15767c7ce4aed189d7e812ed17` | 31,377,912 B |
+| BUILD_COMMIT `471f46537` | Master | `build/tefway/master/TefwayRemoteMaster-Linux-x86_64.AppImage` | `5833c1b09a09270c7c0686626b1897cc9b51c4c11aaf0c9c94b5cdbb66fc80d8` | 31,373,816 B |
+| Closeout FINAL_HEAD `c202168ef` | Client | `build/tefway/client/TefwayRemoteClient-Linux-x86_64.AppImage` | `c877f7b7988ef70d1cae4fbcd0a2471eaa79ce1c338b8d66770a7727c30663a1` | 31,369,720 B |
+| Closeout FINAL_HEAD `c202168ef` | Master | `build/tefway/master/TefwayRemoteMaster-Linux-x86_64.AppImage` | `0ce02e362199d1744d3b381ec9de0171a978eec6dde6e9e4f9a07537ea294fef` | 31,369,720 B |
 
 Each artifact has a `.manifest.json` next to it with profile, commit, toolchain,
-features, runtime pin and embedded layout.
+features, runtime pin and embedded layout. The closeout manifests record
+`commit=e01ec7645a8cfea5355e0877bdc6b4d5a190648a` and the pinned runtime
+`2fca8b443c92…`.
 
 ### 7.3 Runtime validation
 
-Executed on the host (Fedora, X11 `:0`, Wayland `wayland-1`):
+Executed on the host (Fedora 44, X11 `:0`, Wayland `wayland-1`). The closeout
+pair was re-run through the same checks on 2026-11-06; the table below is the
+re-run result:
 
 | Check | Client | Master |
 | --- | --- | --- |
@@ -171,8 +209,12 @@ Executed on the host (Fedora, X11 `:0`, Wayland `wayland-1`):
 | Embedded layout | PASS — AppRun, executable, `librustdesk.so`, Flutter engine, assets | PASS |
 | Unresolved libraries / RUNPATH | PASS at build time (`ldd`, `readelf`) | PASS at build time |
 
-Logs: `/tmp/opencode/client-gui-final.log`,
-`/tmp/opencode/master-gui-final.log` (session artifacts; not committed).
+Logs: `build/tefway/logs/client-runtime-closeout.log`,
+`build/tefway/logs/client-gui-closeout.log`,
+`build/tefway/logs/master-runtime-closeout.log`,
+`build/tefway/logs/master-gui-closeout.log` (gitignored). The GUI runs were
+stopped by `timeout 25s` (exit 124), which is the expected result for a window
+that stays alive; the only diagnostic was the Xvfb `MESA-EGL: DRI3` warning.
 
 ## 8. Regression surface
 
@@ -182,7 +224,10 @@ Logs: `/tmp/opencode/client-gui-final.log`,
 | `flutter/lib/desktop/pages/server_page.dart` | `identityVerified`, `elevationUnavailableReason`, reason selection | Wiring the new contract to live state |
 | `flutter/lib/tefway/strings.dart` | Consent copy updated | New labels and identity/elevation text |
 | `flutter/lib/tefway/widgets.dart` | Optional header `title`; buttons/chip use `Wrap`; secondary buttons get an explicit border | Consent needs its own heading; large text scales overflowed a fixed `Row`; a disabled action must still look like a button |
-| `flutter/lib/tefway/branding.dart` | `tefwayIdentityVerified()` | Identity honesty |
+| `flutter/lib/tefway/branding.dart` | Removed `tefwayIdentityVerified()` | The compiled mode must not claim that a session was verified |
+| `src/ipc.rs` | `tefway_verified_name` on `Data::Login` | Carries the name the core verified to the CM, next to the other login fields |
+| `src/ui_cm_interface.rs` | `Client.tefway_verified_name`, `add_connection` parameter | Same value reaches the Flutter `Client` |
+| `flutter/lib/models/server_model.dart` | `Client.tefwayVerifiedName` | Card input; empty means no verified identity |
 | `src/tefway.rs` | `AUTH_MODE_OPTION` + builtin option + test | The UI must read the compiled auth mode, not guess it |
 | `docker/tefway-linux/build.sh` | Runtime cache, verification, `--runtime-file`, manifest field | Fixes the 504 and makes packaging reproducible |
 | `src/server.rs` | Added `Config2` to an existing import | Release build did not compile without it |
@@ -199,17 +244,16 @@ callbacks, the same `checkClickTime`, the same core methods.
   not photographed in a real incoming session. Layout evidence comes from
   widget tests at the required viewports/scales/DPRs; rendering evidence comes
   from the generated goldens (see §10).
-- At 150% text scale the two top buttons can have different heights when only
-  one label wraps. They stay aligned and usable; equalising them would need an
-  intrinsic-height layout in the fixed footer, which was not worth the risk.
 - DPI is simulated through device pixel ratio and text scale in widget tests,
   not on a physical HiDPI display.
-- In Corporate mode the verified technician *name* is still not carried to the
-  approval window; the card can say "Identidade verificada" but displays the
-  peer-supplied name.
-- `kOptionHideElevateButtonInAcceptWindow=Y` removes the third button by
-  administrator decision. The three-button requirement applies to the default
-  configuration.
+- A verified grant whose technician name is empty is presented as unverified.
+  The card shows only what the core verified, never a fallback name.
+- The closeout AppImages were packaged from the tree that is now FINAL_HEAD
+  `c202168ef`, before it was committed; their manifests record `e01ec7645` and
+  a dirty tree, not the final commit. The binary source is `c202168ef`.
+- `kOptionHideElevateButtonInAcceptWindow=Y` disables the elevated action for
+  policy reasons but keeps it visible; all three actions remain present and the
+  reason names the administrator decision.
 - The AppImage runtime version string printed by `--appimage-version` is the
   runtime's own commit (`dd6cebe`), not the release tag; the release pin is the
   SHA-256 recorded in the manifest.
@@ -238,7 +282,8 @@ TEFWAY_REMOTE_UX_05
 REPOSITORY_ORIGIN          tefway/rustdesk
 BASE_COMMIT                2b72c4ca333f1dbd973f2d1e0da57305c323bf21
 WORK_BRANCH                feat/tefway-remote-ux-05-consent
-FINAL_COMMIT               471f465374be26e1421baf83d5fe5321e29cce41
+BUILD_COMMIT               471f465374be26e1421baf83d5fe5321e29cce41
+FINAL_HEAD                 c202168efa0e144a4212705f80a9073442d5de30
 
 GRAPHIFY_DISCOVERY         PASS
 GRAPHIFY_CODE_MAP          PASS
@@ -256,6 +301,9 @@ PONYTAIL_FINAL_REVIEW      PASS
 CONSENT_UI                 PASS
 CONSENT_RESPONSIVE         PASS
 CONSENT_THREE_BUTTONS      PASS
+CONSENT_ELEVATION_POLICY   PASS
+CONSENT_IDENTITY_SESSION   PASS
+CONSENT_EQUAL_HEIGHT       PASS
 CONSENT_NORMAL_ALLOW       PASS
 CONSENT_REJECT             PASS
 CONSENT_ELEVATED_ALLOW     PASS

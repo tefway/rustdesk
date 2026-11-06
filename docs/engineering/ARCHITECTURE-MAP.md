@@ -75,7 +75,9 @@ peer LoginRequest
        ├─ Tefway Client + Corporate auth
        │    └─ tefway::auth::authorize_login(&lr, device_id)
        │         └─ Err(Denial) → send_login_error() and return false
-       │            Ok(VerifiedGrant) → audit("login-authorised") and continue
+       │            Ok(VerifiedGrant) → audit("login-authorised")
+       │                                + store technician.name for the card
+       │                                + continue
        └─ normal RustDesk login (password / click approval)
             └─ Flutter: server_page.dart  buildTefwayConsentCard(client)
                  └─ TefwayConsentCard (flutter/lib/tefway/consent.dart)
@@ -101,12 +103,17 @@ Facts that must survive any redesign:
   The core owns the permission state; the card only reflects it.
 - `onAllowAndElevate` is `null` when the platform cannot elevate. The action
   still renders, disabled, with a visible reason and a tooltip.
-- Identity honesty: `tefwayIdentityVerified()`
-  (`flutter/lib/tefway/branding.dart`) reads the builtin option
-  `tefway-auth-mode`. Only `corporate` — a build with a compiled-in trust
-  anchor that rejects invalid grants before this window is reachable — may show
-  "Identidade verificada". Anything else shows "Identidade ainda não
-  verificada". A declared name is never presented as verified.
+- Identity honesty: the only verified identity is the `technician.name`
+  carried by the `VerifiedGrant` that `authorize_login` accepted for this
+  connection. It travels on the `Connection` (`tefway_verified_name`), through
+  `Data::Login` and `Client`, to `client.tefwayVerifiedName`. The card shows
+  "Identidade verificada" and that name only when it is non-blank; otherwise it
+  shows "Identidade ainda não verificada". The peer-declared name is never
+  presented as authenticated, and the compiled auth mode is not used as
+  evidence.
+- `onAllowAndElevate` is also `null` when the administrator sets
+  `kOptionHideElevateButtonInAcceptWindow=Y`; the reason then names the policy,
+  not the platform or the session.
 
 ## 4. Identity path (AUTH-01 / AUTH-02)
 
@@ -168,7 +175,7 @@ graphify extract . --code-only --no-cluster
 ```
 
 - Graph: `graphify-out/graph.json` (local artifact, not committed).
-- Size at this revision: **22,240 nodes, 42,732 edges**.
+- Size at UX-05 closeout: **22,311 nodes, 42,778 edges**.
 - Highest-degree nodes (impact hot spots): `lib/common.dart` (518),
   `model.dart` (447), `flutter_ffi.rs` (375), `src/platform/windows.rs` (374),
   `consts.dart` (325), `remote_toolbar.dart` (302), `common.rs` (257),

@@ -7,7 +7,8 @@ only with a gate decision, never to match an implementation shortcut.
 Files: `flutter/lib/tefway/consent.dart`,
 `flutter/lib/desktop/pages/server_page.dart` (`buildTefwayConsentCard`),
 `flutter/lib/tefway/strings.dart`, `src/server/connection.rs`,
-`src/tefway/auth.rs`.
+`src/tefway/auth.rs`, `src/ipc.rs`, `src/ui_cm_interface.rs`,
+`flutter/lib/models/server_model.dart`.
 
 ## 1. Invariants
 
@@ -53,8 +54,12 @@ Availability predicate (`buildTefwayConsentCard`):
 canElevate = client.type_() == ClientType.remote
           && bind.cmCanElevate()
           && model.showElevation
-          && builtin(kOptionHideElevateButtonInAcceptWindow) != 'Y'
+          && !hiddenByPolicy          // kOptionHideElevateButtonInAcceptWindow == 'Y'
 ```
+
+`tefwayElevationUnavailableReason()` in `consent.dart` is the single selector
+for the disabled copy: it returns null exactly when `canElevate` is true, so
+the button can never be disabled without a reason or enabled with one.
 
 Reasons shown when `canElevate` is false:
 
@@ -62,16 +67,26 @@ Reasons shown when `canElevate` is false:
 | --- | --- |
 | Not a desktop session (camera/file transfer) | `consentElevationDesktopOnly` |
 | Platform has no elevation mechanism | `consentElevationUnsupported` |
-| Elevation disabled for this session (option or session state) | `consentElevationSession` |
+| Administrator disabled elevation (`kOptionHideElevateButtonInAcceptWindow=Y`) | `consentElevationPolicy` |
+| Elevation disabled for this session (`model.showElevation`) | `consentElevationSession` |
+
+The administrator option changes the state of the action, never its presence:
+all three actions stay visible in every configuration, including `Y`.
 
 ## 3. Identity
 
-`tefwayIdentityVerified()` (`flutter/lib/tefway/branding.dart`) is true only
-when the build is a Tefway product and the builtin option `tefway-auth-mode` is
-`corporate`. `corporate` means `TEFWAY_AUTH_PUBKEY` is compiled in and
-`authorize_login` rejects invalid grants in `src/server/connection.rs` before
-the consent window is reachable. `pilot` means there is no trust anchor and the
-normal RustDesk authentication applies.
+Verification state is per session and comes from the core, never from the build
+profile. `authorize_login` returns a `VerifiedGrant` only after the technician
+grant's signature, controller, device, nonce and expiry checks pass; the
+technician name from that grant is stored on the `Connection` and sent to the
+CM as `tefway_verified_name` (`Data::Login` → `Client` → JSON).
+
+`TefwayConsentCard` therefore identifies the session as verified only when that
+core-provided name is non-blank, and it displays that name instead of the
+peer-declared one. The builtin option `tefway-auth-mode` stays a diagnostic of
+the compiled mode; it does **not** mark a session verified. In `pilot` mode
+there is no trust anchor, so no grant is verified and the card always says the
+identity is unverified.
 
 | State | Chip | Detail |
 | --- | --- | --- |
@@ -117,6 +132,9 @@ Implementation rules:
   long label degrades by wrapping.
 - Action buttons use a 44 px **minimum** height, never a fixed height: a fixed
   height clips wrapped content outside the button.
+- Refuse and Permitir share one height: the footer row sits inside
+  `IntrinsicHeight` and stretches its children, so a label that wraps at 150%
+  text scale cannot make one button taller than the other.
 - A disabled action keeps a visible border and label; disabled is not conveyed
   by disappearing.
 - Horizontal padding is `lg` below 360 px and `xl` above it.
@@ -150,28 +168,32 @@ Implementation rules:
 1. All three actions present, visible and independent at 300×490.
 2. Elevation unavailable → visible, disabled, explained (text + tooltip).
 3. Elevation available → enabled and not merged with allow.
-4. Declared identity never shown as verified.
-5. Core-verified identity shown as verified.
+4. Declared identity never shown as verified; a blank verified name stays
+   unverified.
+5. Core-verified identity shows the grant's name, not the declared one.
 6. Permission switches call the real callback.
 7. All required viewports × text scales × DPRs render without overflow.
 8. Long names and every permission state do not overflow.
 9. The footer stays reachable with a long permission list.
+10. Refuse and Permitir keep the same height at 150% text scale (300×490 and
+    360×560). The test fails without the stretched intrinsic-height footer.
+11. The elevation reason selector reports policy, mechanism, session and
+    desktop-only causes distinctly.
 
 Rust side: `cargo test --lib --features flutter,linux-pkg-config tefway::`
 must keep passing, including `auth_mode_option_matches_the_compiled_mode`.
 
 ## 9. Known limits
 
-- The consent card does not display a cryptographically verified *name* in
-  Pilot mode; it correctly says the identity is unverified. Showing a verified
-  name in Corporate mode still depends on the grant being carried to the
-  approval window.
+- Pilot mode has no trust anchor, so the card always reports the identity as
+  unverified; no UI path can claim verification without a core-verified name.
+- A verified grant whose technician name is empty is presented as unverified.
+  The card shows what the core verified, never a fallback name.
 - DPI scaling is exercised through device pixel ratio and text scale in widget
   tests. It is not a substitute for visual inspection on a HiDPI display.
-- The elevated action is hidden entirely when the deployment sets
-  `kOptionHideElevateButtonInAcceptWindow=Y`; that option is an explicit
-  administrator decision, not a UI shortcut. The mission requirement (three
-  buttons) applies to the default configuration.
+- `kOptionHideElevateButtonInAcceptWindow=Y` disables the elevated action for
+  policy reasons but keeps it visible; the reason names the administrator
+  decision instead of blaming the platform or the session.
 
 ## 10. Change protocol
 
